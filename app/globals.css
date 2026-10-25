@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/* Dark mode is class-based (html.dark) so the user can override the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #ffffff;
+  --surface: #f7f7f8;
+  --surface-2: #eeeef0;
+  --border: #e2e2e6;
+  --fg: #18181b;
+  --muted: #6b6b76;
+  --accent: #4f46e5;
+  --accent-soft: #eef0ff;
+  --danger: #dc2626;
+  --mark: #fde68a;
+}
+
+.dark {
+  --bg: #0f0f12;
+  --surface: #17171b;
+  --surface-2: #222228;
+  --border: #2d2d35;
+  --fg: #ececf1;
+  --muted: #9a9aa6;
+  --accent: #818cf8;
+  --accent-soft: #23243b;
+  --danger: #f87171;
+  --mark: #854d0e;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* ---- TipTap editor content ---- */
+.tiptap {
+  outline: none;
+  min-height: 100%;
+  line-height: 1.65;
+}
+.tiptap > * + * {
+  margin-top: 0.6em;
+}
+.tiptap h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1em;
+}
+.tiptap h2 {
+  font-size: 1.35rem;
+  font-weight: 650;
+  margin-top: 1.1em;
+}
+.tiptap h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1em;
+}
+.tiptap > :first-child {
+  margin-top: 0;
+}
+.tiptap ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.tiptap ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.tiptap li > p {
+  margin: 0.15em 0;
+}
+.tiptap blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1em;
+  color: var(--muted);
+}
+.tiptap code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+  background: var(--surface-2);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.tiptap pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+}
+.tiptap pre code {
+  background: none;
+  padding: 0;
+}
+.tiptap hr {
+  border-color: var(--border);
+}
+.tiptap a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+/* Concept mention highlight (used when a graph node is clicked, phase 2). */
+.tiptap .concept-highlight {
+  background: var(--mark);
+  border-radius: 3px;
+}
