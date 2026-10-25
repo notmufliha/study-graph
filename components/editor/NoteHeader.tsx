@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { normalizeTag, renameNote, updateNote } from "@/lib/notes";
+import { db } from "@/lib/db";
+import { downloadFile, noteToMarkdown, slugify } from "@/lib/exportImport";
+import { Icon } from "@/components/ui/Icon";
 import type { Note } from "@/lib/types";
 
 export function NoteHeader({ note, children }: { note: Note; children?: React.ReactNode }) {
@@ -53,6 +56,18 @@ export function NoteHeader({ note, children }: { note: Note; children?: React.Re
           className="w-16 bg-transparent text-xs outline-none placeholder:text-muted focus:w-28"
         />
       </div>
+      <button
+        title="Export note as Markdown"
+        aria-label="Export note as Markdown"
+        onClick={async () => {
+          // Read from the database: the prop can lag behind the editor's last autosave.
+          const fresh = (await db.notes.get(note.id)) ?? note;
+          downloadFile(`${slugify(fresh.title)}.md`, noteToMarkdown(fresh), "text/markdown");
+        }}
+        className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
+      >
+        <Icon name="download" />
+      </button>
       {children}
     </div>
   );

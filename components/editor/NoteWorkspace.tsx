@@ -91,7 +91,7 @@ export function NoteWorkspace({ note }: { note: Note }) {
               </button>
             </div>
             <div className="min-h-0 flex-1">
-              <GraphPanel view={note.id} editor={editor} editorSelection={selectedText} />
+              <GraphPanel view={note.id} editor={editor} editorSelection={selectedText} exportName={note.title} />
             </div>
           </div>
         </Panel>

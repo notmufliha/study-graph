@@ -114,7 +114,7 @@ export default function KnowledgeGraphPage() {
       </aside>
 
       <div className="relative min-h-0 flex-1">
-        <GraphPanel view="global" colorBy={colorBy} noteFilter={noteFilter} onSelectConcept={setSelected} />
+        <GraphPanel view="global" exportName="knowledge-graph" colorBy={colorBy} noteFilter={noteFilter} onSelectConcept={setSelected} />
         {selected && <Backlinks conceptId={selected} onClose={() => setSelected(null)} />}
       </div>
     </div>

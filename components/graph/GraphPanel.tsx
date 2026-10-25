@@ -13,12 +13,16 @@ import {
   ReactFlowProvider,
   applyEdgeChanges,
   applyNodeChanges,
+  getNodesBounds,
+  getViewportForBounds,
   useReactFlow,
   type EdgeChange,
   type NodeChange,
 } from "@xyflow/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
+import { toPng } from "html-to-image";
+import { downloadFile, slugify } from "@/lib/exportImport";
 import type { Editor } from "@tiptap/react";
 import { db } from "@/lib/db";
 import type { Concept, ConceptType, Edge, NodeLayout, ViewId } from "@/lib/types";
@@ -61,6 +65,8 @@ type Props = {
   colorBy?: "type" | "note";
   /** Global view: only show concepts mentioned in these notes (null = all). */
   noteFilter?: string[] | null;
+  /** Base name for "Export PNG". */
+  exportName?: string;
   /** Called with the clicked concept (null when the canvas is clicked). */
   onSelectConcept?: (id: string | null) => void;
 };
@@ -129,6 +135,7 @@ function GraphFlow({
   editorSelection = "",
   colorBy = "type",
   onSelectConcept,
+  exportName = "mind-map",
   data,
 }: Props & { data: GraphData }) {
   const rf = useReactFlow<ConceptFlowNode, RelationFlowEdge>();
@@ -170,9 +177,11 @@ function GraphFlow({
       data.concepts.map((c) => {
         const l = layoutById.get(c.id);
         const pos = l ? { x: l.x, y: l.y } : overrides?.get(c.id);
-        return { id: c.id, ...estimateNodeSize(c.label, scaleFor(c)), pos, pinned: l?.pinned };
+        const size = estimateNodeSize(c.label, scaleFor(c));
+        if (data.external.has(c.id)) size.width += 90; // room for the note-name badge on ghost nodes
+        return { id: c.id, ...size, pos, pinned: l?.pinned };
       }),
-    [data.concepts, layoutById],
+    [data.concepts, data.external, layoutById],
   );
 
   // Concepts without a saved position (seeded or newly added) are placed with
@@ -313,6 +322,30 @@ function GraphFlow({
   const doRelayout = async () => {
     await ops.applyLayout(view, relayout(layoutInput(autoPositions), data.edges));
     setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
+  };
+
+  // Renders the whole graph (not just the visible part) to a PNG, following
+  // React Flow's recommended html-to-image approach.
+  const exportPng = async () => {
+    const viewport = wrapper.current?.querySelector<HTMLElement>(".react-flow__viewport");
+    if (!viewport || !nodes.length) return flash("Nothing to export yet");
+    const bounds = getNodesBounds(nodes);
+    const width = Math.round(Math.min(4000, Math.max(800, bounds.width + 120)));
+    const height = Math.round(Math.min(4000, Math.max(600, bounds.height + 120)));
+    const vp = getViewportForBounds(bounds, width, height, 0.1, 2, 0.05);
+    try {
+      const url = await toPng(viewport, {
+        backgroundColor: getComputedStyle(wrapper.current!).backgroundColor,
+        width,
+        height,
+        pixelRatio: 2,
+        style: { width: `${width}px`, height: `${height}px`, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})` },
+      });
+      downloadFile(`${slugify(exportName)}.png`, await (await fetch(url)).blob());
+    } catch (e) {
+      console.error("PNG export failed", e);
+      flash("Couldn't export the image");
+    }
   };
 
   const undo = () => void useHistory.getState().undo(view);
@@ -530,6 +563,7 @@ function GraphFlow({
             <ToolButton icon="undo" label="Undo (Ctrl+Z)" onClick={undo} disabled={!canUndo} />
             <ToolButton icon="redo" label="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={!canRedo} />
             <span className="mx-0.5 w-px bg-border" />
+            <ToolButton icon="image" label="Export as PNG" onClick={() => void exportPng()} />
             <ToolButton
               icon={fullscreen ? "minimize" : "maximize"}
               label={fullscreen ? "Exit full screen (Esc)" : "Full screen"}

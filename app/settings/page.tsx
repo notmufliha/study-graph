@@ -6,6 +6,7 @@ import type { ProviderKind } from "@/lib/ai/provider";
 import { useMounted } from "@/lib/useMounted";
 import { aiSettings, useSettings } from "@/store/settingsStore";
 import { Icon } from "@/components/ui/Icon";
+import { downloadFile, exportAll, importAll } from "@/lib/exportImport";
 
 type TestState =
   | { kind: "idle" }
@@ -164,8 +165,58 @@ function SettingsForm() {
 
           {isOllama && <Troubleshooting open={test.kind === "fail"} />}
         </Section>
+
+        <DataSection />
       </div>
     </div>
+  );
+}
+
+function DataSection() {
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const onExport = async () => {
+    const backup = await exportAll();
+    const date = new Date().toLocaleDateString("en-CA"); // local YYYY-MM-DD
+    downloadFile(`study-graph-backup-${date}.json`, JSON.stringify(backup, null, 2), "application/json");
+    setMessage({ ok: true, text: `Exported ${backup.notes.length} notes and ${backup.concepts.length} concepts.` });
+  };
+
+  const onImport = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const r = await importAll(await file.text());
+      setMessage({ ok: true, text: `Imported ${r.notes} notes, ${r.concepts} concepts and ${r.edges} connections.` });
+    } catch (e) {
+      setMessage({ ok: false, text: (e as Error).message });
+    }
+  };
+
+  return (
+    <Section title="Your data">
+      <p className="text-sm text-muted">
+        Notes and maps are stored only in this browser. Export a backup to move to another device, or before clearing
+        site data. Importing merges the backup in: notes with the same id are replaced, nothing else is deleted.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => void onExport()} className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface">
+          <Icon name="download" size={14} /> Export all data (JSON)
+        </button>
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface focus-within:ring-2 focus-within:ring-accent/30">
+          <Icon name="upload" size={14} /> Import backup…
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            onChange={(e) => {
+              void onImport(e.target.files?.[0]);
+              e.target.value = ""; // allow importing the same file again
+            }}
+          />
+        </label>
+      </div>
+      {message && <p className={`text-sm ${message.ok ? "text-emerald-600 dark:text-emerald-400" : "text-danger"}`}>{message.text}</p>}
+    </Section>
   );
 }
 
