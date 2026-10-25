@@ -32,7 +32,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="h-full overflow-hidden">
+      {/* Browser extensions often inject attributes on <body>; don't treat that as a hydration error. */}
+      <body className="h-full overflow-hidden" suppressHydrationWarning>
         <AppShell>{children}</AppShell>
       </body>
     </html>

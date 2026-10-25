@@ -5,6 +5,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Placeholder } from "@tiptap/extensions";
 import { EditorToolbar } from "./EditorToolbar";
+import { ConceptHighlight } from "./conceptHighlight";
 import { updateNote } from "@/lib/notes";
 import { parseDoc } from "@/lib/tiptap";
 
@@ -45,6 +46,7 @@ export function NoteEditor({ noteId, initialContent, onReady }: Props) {
         link: { openOnClick: false, autolink: true },
       }),
       Placeholder.configure({ placeholder: "Start typing your notes… (try # for a heading, - for a list)" }),
+      ConceptHighlight,
     ],
     content: parseDoc(initialContent),
     // Required with SSR: render the editor only on the client to avoid hydration mismatches.

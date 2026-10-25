@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { Editor } from "@tiptap/react";
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { NoteEditor } from "./NoteEditor";
 import { NoteHeader } from "./NoteHeader";
 import { Icon } from "@/components/ui/Icon";
+import { GraphPanel } from "@/components/graph/GraphPanel";
 import type { Note } from "@/lib/types";
 
 /** Editor on the left, collapsible/resizable mind-map panel on the right. */
@@ -14,6 +16,21 @@ export function NoteWorkspace({ note }: { note: Note }) {
   // Remembers the split across visits (localStorage). This component only
   // renders on the client after the note loads, so localStorage is available.
   const layout = useDefaultLayout({ id: "note-split", storage: localStorage });
+
+  // Shared with the graph so nodes and text can highlight each other.
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const [selectedText, setSelectedText] = useState("");
+  useEffect(() => {
+    if (!editor) return;
+    const onSelection = () => {
+      const { from, to, empty } = editor.state.selection;
+      setSelectedText(empty ? "" : editor.state.doc.textBetween(from, to, " "));
+    };
+    editor.on("selectionUpdate", onSelection);
+    return () => {
+      editor.off("selectionUpdate", onSelection);
+    };
+  }, [editor]);
 
   const toggleGraph = () => {
     const p = graphPanel.current;
@@ -43,7 +60,7 @@ export function NoteWorkspace({ note }: { note: Note }) {
         onLayoutChanged={layout.onLayoutChanged}
       >
         <Panel id="editor" minSize="30">
-          <NoteEditor noteId={note.id} initialContent={note.content} />
+          <NoteEditor noteId={note.id} initialContent={note.content} onReady={setEditor} />
         </Panel>
         <Separator className="w-1 bg-border transition-colors hover:bg-accent data-[separator=active]:bg-accent" />
         <Panel
@@ -66,8 +83,8 @@ export function NoteWorkspace({ note }: { note: Note }) {
                 <Icon name="x" size={14} />
               </button>
             </div>
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted">
-              The live mind map for this note will appear here (Phase 2).
+            <div className="min-h-0 flex-1">
+              <GraphPanel view={note.id} editor={editor} editorSelection={selectedText} />
             </div>
           </div>
         </Panel>

@@ -135,3 +135,44 @@ body {
   background: var(--mark);
   border-radius: 3px;
 }
+
+/* ---- Graph (React Flow) ---- */
+.react-flow {
+  --xy-background-color: var(--surface);
+  --xy-background-pattern-color: var(--border);
+  --xy-minimap-background-color: var(--bg);
+  --xy-controls-button-background-color: var(--bg);
+  --xy-controls-button-background-color-hover: var(--surface-2);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-border-color: var(--border);
+  --xy-selection-background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  --xy-selection-border: 1px dotted var(--accent);
+}
+/* Connection handles appear on hover, so the map stays clean. */
+.react-flow__node .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.react-flow__node:hover .react-flow__handle,
+.react-flow__node.selected .react-flow__handle,
+.react-flow.connecting .react-flow__handle {
+  opacity: 1;
+}
+.concept-node-highlight {
+  box-shadow: 0 0 0 5px var(--mark);
+}
+.react-flow__node .react-flow__handle.concept-drop-handle {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  transform: none;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  opacity: 1;
+}
