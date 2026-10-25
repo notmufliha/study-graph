@@ -2,18 +2,16 @@ import { Extension, type Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { termsRegex } from "@/lib/graph/normalize";
 
 type State = { terms: string[]; deco: DecorationSet };
 
 const key = new PluginKey<State>("conceptHighlight");
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 /** Document ranges where any of `terms` appears as a whole word (plural "s"/"es" allowed), case-insensitive. */
 export function findTermRanges(doc: PMNode, terms: string[]): { from: number; to: number }[] {
-  const clean = [...new Set(terms.map((t) => t.trim()).filter((t) => t.length >= 2))].sort((a, b) => b.length - a.length);
-  if (!clean.length) return [];
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${clean.map(escape).join("|")})(?:e?s)?(?![\\p{L}\\p{N}])`, "giu");
+  const re = termsRegex(terms);
+  if (!re) return [];
   const ranges: { from: number; to: number }[] = [];
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;

@@ -27,6 +27,9 @@ import { matchSelection } from "@/lib/graph/normalize";
 import * as ops from "@/lib/graph/ops";
 import { useHistory } from "@/store/historyStore";
 import { useUI } from "@/store/uiStore";
+import { aiSettings, useSettings } from "@/store/settingsStore";
+import { explainConcept, saveSummary } from "@/lib/ai/explain";
+import type { Explanation } from "@/lib/ai/schemas";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { jumpToTerms, setHighlightTerms } from "@/components/editor/conceptHighlight";
 import { ConceptNode, type ConceptFlowNode } from "./ConceptNode";
@@ -87,6 +90,25 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const aiEnabled = useSettings((s) => s.enabled);
+  const [explain, setExplain] = useState<{ id: string; label: string; result?: Explanation; error?: string } | null>(null);
+  const explainCtrl = useRef<AbortController | null>(null);
+  useEffect(() => () => explainCtrl.current?.abort(), []);
+
+  const askExplain = async (id: string) => {
+    explainCtrl.current?.abort();
+    const ctrl = new AbortController();
+    explainCtrl.current = ctrl;
+    setExplain({ id, label: conceptById.get(id)?.label ?? "" });
+    try {
+      const result = await explainConcept(id, aiSettings(), ctrl.signal);
+      if (ctrl.signal.aborted) return;
+      setExplain((x) => (x?.id === id ? { ...x, ...(result ? { result } : { error: "The AI's answer was unusable. Try again." }) } : x));
+    } catch (e) {
+      if (ctrl.signal.aborted) return;
+      setExplain((x) => (x?.id === id ? { ...x, error: (e as Error).message } : x));
+    }
+  };
 
   const conceptById = useMemo(() => new Map(data.concepts.map((c) => [c.id, c])), [data.concepts]);
   const layoutById = useMemo(() => new Map(data.layouts.map((l) => [l.conceptId, l])), [data.layouts]);
@@ -211,8 +233,8 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
 
   const uniqueLabel = useCallback(() => {
     const taken = new Set(data.concepts.map((c) => c.label));
-    let label = "new concept";
-    for (let i = 2; taken.has(label); i++) label = `new concept ${i}`;
+    let label = ops.PLACEHOLDER_LABEL;
+    for (let i = 2; taken.has(label); i++) label = `${ops.PLACEHOLDER_LABEL} ${i}`;
     return label;
   }, [data.concepts]);
 
@@ -309,7 +331,14 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
             },
           ] as MenuItem[])
         : []),
-      { kind: "item", label: "Ask AI to explain", icon: "sparkles", disabled: true, hint: "Phase 3", onSelect: () => {} },
+      {
+        kind: "item",
+        label: "Ask AI to explain",
+        icon: "sparkles",
+        disabled: !aiEnabled,
+        hint: aiEnabled ? undefined : "AI is off",
+        onSelect: () => void askExplain(t.id),
+      },
       { kind: "separator" },
       {
         kind: "custom",
@@ -462,6 +491,20 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
           </div>
         )}
 
+        {explain && (
+          <ExplainCard
+            {...explain}
+            onClose={() => {
+              explainCtrl.current?.abort();
+              setExplain(null);
+            }}
+            onSave={(summary) => {
+              void saveSummary(explain.id, summary);
+              flash("Saved as the concept's summary");
+            }}
+          />
+        )}
+
         {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onClose={() => setMenu(null)} />}
       </div>
     </GraphContext.Provider>
@@ -479,5 +522,42 @@ function ToolButton({ icon, label, onClick, disabled }: { icon: IconName; label:
     >
       <Icon name={icon} size={15} />
     </button>
+  );
+}
+
+function ExplainCard({
+  label,
+  result,
+  error,
+  onClose,
+  onSave,
+}: {
+  label: string;
+  result?: Explanation;
+  error?: string;
+  onClose: () => void;
+  onSave: (summary: string) => void;
+}) {
+  return (
+    <div className="absolute inset-x-3 bottom-3 z-40 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-bg p-3 text-sm shadow-lg">
+      <div className="mb-1 flex items-center gap-2">
+        <Icon name="sparkles" size={14} className="text-accent" />
+        <span className="flex-1 font-semibold">{label}</span>
+        <button aria-label="Close explanation" onClick={onClose} className="rounded p-1 text-muted hover:bg-surface-2">
+          <Icon name="x" size={14} />
+        </button>
+      </div>
+      {!result && !error && <p className="animate-pulse text-muted">Asking the AI…</p>}
+      {error && <p className="text-danger">{error}</p>}
+      {result && (
+        <>
+          <p className="font-medium">{result.summary}</p>
+          <div className="mt-2 space-y-2 whitespace-pre-line text-muted">{result.explanation}</div>
+          <button onClick={() => onSave(result.summary)} className="mt-3 rounded-md bg-accent-soft px-2 py-1 text-xs text-accent hover:opacity-80">
+            Save one-liner as node summary
+          </button>
+        </>
+      )}
+    </div>
   );
 }

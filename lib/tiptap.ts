@@ -26,6 +26,21 @@ export function docBlocks(doc: JSONContent): string[] {
   return (doc.content ?? []).map(nodeText).filter((t) => t.trim().length > 0);
 }
 
+export type Block = { text: string; heading?: string };
+
+/** Top-level blocks with the heading each one sits under (gives the model section context). */
+export function blocksOf(doc: JSONContent): Block[] {
+  let heading: string | undefined;
+  const out: Block[] = [];
+  for (const node of doc.content ?? []) {
+    const text = nodeText(node).trim();
+    if (!text) continue;
+    if (node.type === "heading") heading = text;
+    out.push({ text, heading: node.type === "heading" ? undefined : heading });
+  }
+  return out;
+}
+
 export function docText(content: string): string {
   return docBlocks(parseDoc(content)).join("\n");
 }

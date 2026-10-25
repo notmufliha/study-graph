@@ -1,5 +1,7 @@
 import type { Concept } from "../types";
 
+export const DEFAULT_RELATION = "related to";
+
 const EDGE_PUNCT = /^[\s"'`“”.,;:!?()[\]{}*_]+|[\s"'`“”.,;:!?()[\]{}*_]+$/g;
 
 /** Display form of a label: lowercase, trimmed, single-spaced, no wrapping punctuation. */
@@ -8,6 +10,7 @@ export function normalizeLabel(s: string): string {
     .normalize("NFKC")
     .toLowerCase()
     .replace(/[‘’]/g, "'")
+    .replace(/_+/g, " ") // models sometimes answer in snake_case ("used_for")
     .replace(/\s+/g, " ")
     .replace(EDGE_PUNCT, "")
     .trim();
@@ -42,6 +45,20 @@ export function conceptKeys(c: Pick<Concept, "label" | "aliases">): string[] {
 export function findByLabel<T extends Pick<Concept, "label" | "aliases">>(concepts: T[], label: string): T | undefined {
   const key = labelKey(label);
   return concepts.find((c) => conceptKeys(c).includes(key));
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Regex matching any term as a whole word, plural "s"/"es" allowed, case-insensitive. */
+export function termsRegex(terms: string[]): RegExp | null {
+  const clean = [...new Set(terms.map((t) => t.trim()).filter((t) => t.length >= 2))].sort((a, b) => b.length - a.length);
+  if (!clean.length) return null;
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${clean.map(escapeRe).join("|")})(?:e?s)?(?![\\p{L}\\p{N}])`, "giu");
+}
+
+export function mentionsAny(text: string, terms: string[]): boolean {
+  const re = termsRegex(terms);
+  return !!re && re.test(text);
 }
 
 /** Key for the per-note "deleted by user" blocklist of edges. */

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { t } from "./tiptap";
+import { blocksOf, t } from "./tiptap";
 import type { Concept, ConceptType, Edge, Note } from "./types";
 
 export const DEMO_NOTE_ID = "demo-intro-os";
@@ -129,6 +129,8 @@ async function seedDemoGraph() {
   // No layouts: the graph panel lays out unpositioned concepts with dagre on first view.
   await db.concepts.bulkPut(concepts);
   await db.edges.bulkPut(edges);
+  // The map above already covers this text, so live AI updates start from here.
+  await db.meta.put({ key: `ai:${DEMO_NOTE_ID}`, value: { blocks: blocksOf(demoDoc).map((b) => b.text) } });
 }
 
 /**

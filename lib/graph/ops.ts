@@ -3,7 +3,9 @@ import { newId } from "../id";
 import type { Concept, ConceptType, Edge, NodeLayout, ViewId } from "../types";
 import { recordChanges, type Recorder } from "./history";
 import type { XY } from "./layout";
-import { edgeKey, findByLabel, labelKey, normalizeLabel } from "./normalize";
+import { DEFAULT_RELATION, edgeKey, findByLabel, labelKey, normalizeLabel } from "./normalize";
+
+export { DEFAULT_RELATION };
 import { useHistory } from "@/store/historyStore";
 
 /*
@@ -12,8 +14,6 @@ import { useHistory } from "@/store/historyStore";
  * student touches is marked origin "user" or pinned, which is what tells the AI
  * (phase 3) to leave it alone.
  */
-
-export const DEFAULT_RELATION = "related to";
 
 async function edit(view: ViewId, label: string, fn: (rec: Recorder) => Promise<void>) {
   const changes = await recordChanges(fn);
@@ -80,10 +80,15 @@ export async function renameConcept(view: ViewId, id: string, rawLabel: string) 
       await mergeInto(rec, c, { ...target, label, origin: "user" });
       return;
     }
-    const aliases = labelKey(c.label) === labelKey(label) ? c.aliases : [...c.aliases, c.label];
+    // Keep the old name as an alias, unless it was just the "new concept" placeholder.
+    const keepOld = labelKey(c.label) !== labelKey(label) && !PLACEHOLDER.test(c.label);
+    const aliases = keepOld ? [...c.aliases, c.label] : c.aliases;
     await rec.put("concepts", { ...c, label, aliases: dedupe(aliases.filter((a) => a !== label)), origin: "user" });
   });
 }
+
+export const PLACEHOLDER_LABEL = "new concept";
+const PLACEHOLDER = /^new concept( \d+)?$/;
 
 const dedupe = (xs: string[]) => [...new Set(xs)];
 

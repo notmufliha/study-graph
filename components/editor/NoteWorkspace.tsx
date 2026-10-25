@@ -7,6 +7,8 @@ import { NoteEditor } from "./NoteEditor";
 import { NoteHeader } from "./NoteHeader";
 import { Icon } from "@/components/ui/Icon";
 import { GraphPanel } from "@/components/graph/GraphPanel";
+import { AIStatus } from "./AIStatus";
+import { useLiveGraph } from "./useLiveGraph";
 import type { Note } from "@/lib/types";
 
 /** Editor on the left, collapsible/resizable mind-map panel on the right. */
@@ -31,6 +33,8 @@ export function NoteWorkspace({ note }: { note: Note }) {
       editor.off("selectionUpdate", onSelection);
     };
   }, [editor]);
+
+  const live = useLiveGraph(note.id, editor);
 
   const toggleGraph = () => {
     const p = graphPanel.current;
@@ -74,7 +78,10 @@ export function NoteWorkspace({ note }: { note: Note }) {
         >
           <div className="flex h-full flex-col bg-surface">
             <div className="flex items-center justify-between border-b border-border px-3 py-2 text-sm">
-              <span className="font-medium">Mind map</span>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="font-medium">Mind map</span>
+                <AIStatus status={live.status} detail={live.detail} onAnalyze={live.analyzeAll} />
+              </div>
               <button
                 aria-label="Collapse mind map"
                 onClick={() => graphPanel.current?.collapse()}

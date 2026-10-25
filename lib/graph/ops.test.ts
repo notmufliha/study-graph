@@ -77,6 +77,12 @@ describe("graph ops", () => {
     expect(await db.edges.get("e")).toMatchObject({ source: "a" });
   });
 
+  it("doesn't keep the 'new concept' placeholder as an alias", async () => {
+    const id = (await ops.addConcept(N, "new concept 2", { x: 0, y: 0 }))!;
+    await ops.renameConcept(N, id, "cpu");
+    expect(await db.concepts.get(id)).toMatchObject({ label: "cpu", aliases: [] });
+  });
+
   it("deleting an edge blocks it, and rejecting a suggestion remembers the pair", async () => {
     await db.concepts.bulkAdd([
       { id: "a", label: "paging", aliases: [], noteIds: [N] },

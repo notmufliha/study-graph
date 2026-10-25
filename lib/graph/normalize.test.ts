@@ -6,6 +6,7 @@ describe("normalizeLabel", () => {
     expect(normalizeLabel("  **Binary   Search Tree**. ")).toBe("binary search tree");
     expect(normalizeLabel("“Deadlock”")).toBe("deadlock");
     expect(normalizeLabel("(Mutex)")).toBe("mutex");
+    expect(normalizeLabel("forces_read_from")).toBe("forces read from");
   });
 });
 
