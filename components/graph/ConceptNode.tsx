@@ -15,6 +15,8 @@ export type ConceptNodeData = {
   pinned: boolean;
   highlighted: boolean; // matches the text selected in the editor
   editing: boolean;
+  /** Set for ghost nodes: the title of the other note this concept comes from. */
+  external?: string;
 };
 export type ConceptFlowNode = Node<ConceptNodeData, "concept">;
 
@@ -24,10 +26,10 @@ export const ConceptNode = memo(function ConceptNode({ id, data, selected }: Nod
   const isDropTarget = useConnection((c) => c.inProgress && c.fromNode.id !== id);
   return (
     <div
-      title={data.summary}
+      title={data.external ? `From "${data.external}"${data.summary ? `: ${data.summary}` : ""}` : data.summary}
       className={`concept-node relative flex items-center gap-1.5 rounded-lg border-2 bg-bg px-3 py-1.5 shadow-sm ${
         selected ? "outline-2 outline-offset-2 outline-accent" : ""
-      } ${data.highlighted ? "concept-node-highlight" : ""}`}
+      } ${data.highlighted ? "concept-node-highlight" : ""} ${data.external ? "border-dashed opacity-75" : ""}`}
       style={{ borderColor: data.color, fontSize: `${13 * data.scale}px` }}
     >
       <Handle type="target" position={Position.Left} />
@@ -46,6 +48,9 @@ export const ConceptNode = memo(function ConceptNode({ id, data, selected }: Nod
         <span title="Pinned: re-layout and AI won't move it" className="text-muted">
           <Icon name="pin" size={11} />
         </span>
+      )}
+      {data.external && (
+        <span className="max-w-24 truncate rounded bg-surface-2 px-1 text-[10px] leading-4 text-muted">{data.external}</span>
       )}
       {data.mentions > 1 && (
         <span

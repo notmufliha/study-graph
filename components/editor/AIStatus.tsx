@@ -23,7 +23,7 @@ export function AIStatus({ status, detail, onAnalyze }: { status: LiveStatus; de
       <span className={`h-2 w-2 shrink-0 rounded-full ${look.dot}`} />
       <span className="truncate" title={detail || undefined}>
         {label}
-        {status === "updated" && detail ? ` (${detail})` : ""}
+        {(status === "updated" || status === "thinking") && detail ? ` (${detail})` : ""}
       </span>
       {status === "unreachable" || status === "off" ? (
         <Link href="/settings" className="shrink-0 text-accent hover:underline">

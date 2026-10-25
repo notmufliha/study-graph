@@ -18,10 +18,11 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import { useLiveQuery } from "dexie-react-hooks";
+import { useRouter } from "next/navigation";
 import type { Editor } from "@tiptap/react";
 import { db } from "@/lib/db";
 import type { Concept, ConceptType, Edge, NodeLayout, ViewId } from "@/lib/types";
-import { TYPE_COLORS, TYPE_LABELS, noteColor } from "@/lib/graph/colors";
+import { TYPE_COLORS, TYPE_LABELS, noteColorMap } from "@/lib/graph/colors";
 import { estimateNodeSize, placeNewNodes, relayout, type LayoutNode, type XY } from "@/lib/graph/layout";
 import { matchSelection } from "@/lib/graph/normalize";
 import * as ops from "@/lib/graph/ops";
@@ -40,7 +41,15 @@ import { GraphContext, type GraphActions, type MenuTarget } from "./GraphContext
 const nodeTypes = { concept: ConceptNode };
 const edgeTypes = { relation: RelationEdge };
 
-type GraphData = { concepts: Concept[]; edges: Edge[]; layouts: NodeLayout[] };
+type GraphData = {
+  concepts: Concept[];
+  edges: Edge[];
+  layouts: NodeLayout[];
+  /** Concepts from other notes shown as "ghost" endpoints of cross-note edges (note view only). */
+  external: Set<string>;
+  noteTitles: Record<string, string>;
+  noteColors: Map<string, string>;
+};
 
 type Props = {
   /** A note id (that note's mind map) or "global" (every concept). */
@@ -50,10 +59,15 @@ type Props = {
   /** Text currently selected in the editor. */
   editorSelection?: string;
   colorBy?: "type" | "note";
+  /** Global view: only show concepts mentioned in these notes (null = all). */
+  noteFilter?: string[] | null;
+  /** Called with the clicked concept (null when the canvas is clicked). */
+  onSelectConcept?: (id: string | null) => void;
 };
 
 export function GraphPanel(props: Props) {
-  const data = useLiveQuery(() => loadGraph(props.view), [props.view]);
+  const raw = useLiveQuery(() => loadGraph(props.view), [props.view]);
+  const data = useMemo(() => raw && filterByNotes(raw, props.noteFilter), [raw, props.noteFilter]);
   if (!data) return <div className="p-4 text-sm text-muted">Loading map…</div>;
   return (
     <ReactFlowProvider>
@@ -63,14 +77,44 @@ export function GraphPanel(props: Props) {
 }
 
 async function loadGraph(view: ViewId): Promise<GraphData> {
-  const concepts =
-    view === "global" ? await db.concepts.toArray() : await db.concepts.where("noteIds").equals(view).toArray();
+  if (view === "global") {
+    const notes = await db.notes.toArray();
+    return {
+      concepts: await db.concepts.toArray(),
+      edges: await db.edges.toArray(),
+      layouts: await db.layouts.where("noteId").equals(view).toArray(),
+      external: new Set(),
+      noteTitles: Object.fromEntries(notes.map((n) => [n.id, n.title])),
+      noteColors: noteColorMap(notes),
+    };
+  }
+  const local = await db.concepts.where("noteIds").equals(view).toArray();
+  const ids = new Set(local.map((c) => c.id));
+  const touching = await db.edges.where("source").anyOf([...ids]).or("target").anyOf([...ids]).toArray();
+  // A note's map shows its own edges plus cross-note edges (no noteId). The far
+  // end of a cross-note edge lives in another note and is shown as a ghost node.
+  const edges = touching.filter((e) => (e.noteId === view && ids.has(e.source) && ids.has(e.target)) || !e.noteId);
+  const externalIds = [...new Set(edges.flatMap((e) => [e.source, e.target]).filter((id) => !ids.has(id)))];
+  const external = (await db.concepts.bulkGet(externalIds)).filter((c): c is Concept => !!c);
+  const titleIds = [...new Set(external.map((c) => c.noteIds[0]).filter(Boolean))];
+  const notes = await db.notes.bulkGet(titleIds);
+  const known = new Set([...ids, ...external.map((c) => c.id)]);
+  return {
+    concepts: [...local, ...external],
+    edges: edges.filter((e) => known.has(e.source) && known.has(e.target)),
+    layouts: await db.layouts.where("noteId").equals(view).toArray(),
+    external: new Set(external.map((c) => c.id)),
+    noteTitles: Object.fromEntries(notes.filter((n) => !!n).map((n) => [n!.id, n!.title])),
+    noteColors: new Map(), // color-by-note is a global-view feature
+  };
+}
+
+function filterByNotes(data: GraphData, noteFilter: string[] | null | undefined): GraphData {
+  if (!noteFilter) return data;
+  const allowed = new Set(noteFilter);
+  const concepts = data.concepts.filter((c) => c.noteIds.some((n) => allowed.has(n)));
   const ids = new Set(concepts.map((c) => c.id));
-  const edges = (view === "global" ? await db.edges.toArray() : await db.edges.where("source").anyOf([...ids]).toArray())
-    // A note's map shows its own edges plus cross-note edges between its concepts.
-    .filter((e) => ids.has(e.source) && ids.has(e.target) && (view === "global" || !e.noteId || e.noteId === view));
-  const layouts = await db.layouts.where("noteId").equals(view).toArray();
-  return { concepts, edges, layouts };
+  return { ...data, concepts, edges: data.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };
 }
 
 const scaleFor = (c: Concept) => Math.min(1.6, 1 + 0.15 * Math.max(0, c.noteIds.length - 1));
@@ -79,8 +123,16 @@ const termsOf = (c: Concept | undefined) => (c ? [c.label, ...c.aliases] : []);
 type Editing = { kind: "node" | "edge"; id: string } | null;
 type MenuState = { x: number; y: number; target: MenuTarget };
 
-function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data }: Props & { data: GraphData }) {
+function GraphFlow({
+  view,
+  editor,
+  editorSelection = "",
+  colorBy = "type",
+  onSelectConcept,
+  data,
+}: Props & { data: GraphData }) {
   const rf = useReactFlow<ConceptFlowNode, RelationFlowEdge>();
+  const router = useRouter();
   const theme = useUI((s) => s.theme);
   const canUndo = useHistory((s) => (s.stacks[view]?.undo.length ?? 0) > 0);
   const canRedo = useHistory((s) => (s.stacks[view]?.redo.length ?? 0) > 0);
@@ -130,23 +182,28 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
     if (autoPositions.size) void ops.saveAutoPositions(view, autoPositions);
   }, [autoPositions, view]);
 
-  const highlighted = useMemo(() => new Set(matchSelection(editorSelection, data.concepts)), [editorSelection, data.concepts]);
+  const localConcepts = useMemo(() => data.concepts.filter((c) => !data.external.has(c.id)), [data]);
+  const highlighted = useMemo(() => new Set(matchSelection(editorSelection, localConcepts)), [editorSelection, localConcepts]);
 
   const baseNodes = useMemo<ConceptFlowNode[]>(
     () =>
       data.concepts.map((c) => {
         const l = layoutById.get(c.id);
+        const ghost = data.external.has(c.id);
         const color =
           colorBy === "note"
             ? c.noteIds.length > 1
               ? "var(--accent)"
-              : noteColor(c.noteIds[0] ?? "none")
+              : (data.noteColors.get(c.noteIds[0]) ?? TYPE_COLORS.other)
             : TYPE_COLORS[c.type ?? "term"];
         return {
           id: c.id,
           type: "concept",
           position: l ? { x: l.x, y: l.y } : (autoPositions.get(c.id) ?? { x: 0, y: 0 }),
+          // Ghosts belong to another note: visible for context, but not editable here.
+          ...(ghost ? { deletable: false, connectable: false } : {}),
           data: {
+            external: ghost ? (data.noteTitles[c.noteIds[0]] ?? "another note") : undefined,
             label: c.label,
             summary: c.summary,
             color,
@@ -158,7 +215,7 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
           },
         };
       }),
-    [data.concepts, layoutById, autoPositions, colorBy, highlighted, editing],
+    [data.concepts, data.external, data.noteTitles, data.noteColors, layoutById, autoPositions, colorBy, highlighted, editing],
   );
 
   const baseEdges = useMemo<RelationFlowEdge[]>(
@@ -318,6 +375,19 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
     }
     const c = conceptById.get(t.id);
     const pinned = !!layoutById.get(t.id)?.pinned;
+    if (data.external.has(t.id)) {
+      const home = c?.noteIds[0];
+      return [
+        {
+          kind: "item",
+          label: `Open "${(home && data.noteTitles[home]) || "note"}"`,
+          icon: "note",
+          disabled: !home,
+          onSelect: () => home && router.push(`/notes/${home}`),
+        },
+        { kind: "item", label: pinned ? "Unpin" : "Pin in place", icon: "pin", onSelect: () => void ops.setPinned(view, [t.id], !pinned) },
+      ];
+    }
     return [
       { kind: "item", label: "Rename", icon: "pencil", onSelect: () => setEditing({ kind: "node", id: t.id }) },
       { kind: "item", label: pinned ? "Unpin" : "Pin in place", icon: "pin", onSelect: () => void ops.setPinned(view, [t.id], !pinned) },
@@ -415,12 +485,16 @@ function GraphFlow({ view, editor, editorSelection = "", colorBy = "type", data 
             if (id) setEditing({ kind: "edge", id }); // ask for the relation right away
           }}
           onDelete={({ nodes: ns, edges: es }) => void ops.deleteElements(view, ns.map((n) => n.id), es.map((e) => e.id))}
-          onNodeClick={(_, n) => setHighlightTerms(editor, termsOf(conceptById.get(n.id)))}
+          onNodeClick={(_, n) => {
+            if (!data.external.has(n.id)) setHighlightTerms(editor, termsOf(conceptById.get(n.id)));
+            onSelectConcept?.(n.id);
+          }}
           onPaneClick={() => {
             setHighlightTerms(editor, []);
+            onSelectConcept?.(null);
             wrapper.current?.focus({ preventScroll: true });
           }}
-          onNodeDoubleClick={(_, n) => setEditing({ kind: "node", id: n.id })}
+          onNodeDoubleClick={(_, n) => !data.external.has(n.id) && setEditing({ kind: "node", id: n.id })}
           onEdgeDoubleClick={(_, e) => setEditing({ kind: "edge", id: e.id })}
           onNodeContextMenu={(e, n) => actions.openMenu(e, { kind: "node", id: n.id })}
           onEdgeContextMenu={(e, ed) => actions.openMenu(e, { kind: "edge", id: ed.id })}

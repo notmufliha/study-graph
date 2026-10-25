@@ -17,11 +17,14 @@ export const TYPE_LABELS: Record<ConceptType, string> = {
   other: "Other",
 };
 
-const NOTE_PALETTE = ["#6366f1", "#0ea5e9", "#f59e0b", "#10b981", "#ec4899", "#8b5cf6", "#ef4444", "#14b8a6", "#84cc16"];
+// Distinct hues, none close to the indigo accent (which marks concepts shared by several notes).
+const NOTE_PALETTE = ["#0ea5e9", "#f59e0b", "#10b981", "#ec4899", "#ef4444", "#8b5cf6", "#14b8a6", "#84cc16", "#f97316"];
 
-/** Stable color per note id (global graph "color by note" mode). */
-export function noteColor(noteId: string): string {
-  let h = 0;
-  for (const ch of noteId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return NOTE_PALETTE[h % NOTE_PALETTE.length];
+/**
+ * One color per note, assigned in creation order so the first notes get
+ * clearly different colors (hashing ids gave near-identical hues).
+ */
+export function noteColorMap(notes: { id: string; createdAt: number }[]): Map<string, string> {
+  const sorted = [...notes].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  return new Map(sorted.map((n, i) => [n.id, NOTE_PALETTE[i % NOTE_PALETTE.length]]));
 }

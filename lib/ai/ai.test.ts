@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db";
 import { t } from "../tiptap";
+import { pairKey, planSuggestions, runCrossLinks } from "./crossLinks";
 import { runExtraction } from "./liveGraph";
 import { OllamaBrowserProvider } from "./ollama";
 import { DEFAULT_AI_SETTINGS, chatJSONWithRetry, parseJSON } from "./provider";
@@ -105,5 +106,52 @@ describe("runExtraction", () => {
     });
     await expect(runExtraction("n1", t.doc(t.p("kernel")), DEFAULT_AI_SETTINGS, ctrl.signal)).rejects.toMatchObject({ name: "AbortError" });
     expect(await db.concepts.count()).toBe(0);
+  });
+});
+
+describe("cross-note suggestions", () => {
+  const seed = async () => {
+    await db.concepts.bulkAdd([
+      { id: "a", label: "process", aliases: [], noteIds: ["n1"], origin: "ai" },
+      { id: "b", label: "thread", aliases: [], noteIds: ["n1"], origin: "ai" },
+      { id: "x", label: "fork", aliases: [], noteIds: ["n2"], origin: "ai" },
+      { id: "y", label: "goroutine", aliases: [], noteIds: ["n2"], origin: "ai" },
+    ]);
+  };
+
+  it("planSuggestions resolves ids or labels and drops known, rejected and invalid pairs", () => {
+    const c = (id: string, label: string) => ({ id, label, aliases: [], noteIds: [] });
+    let i = 0;
+    const out = planSuggestions({
+      links: [
+        { source: "a", target: "x", relation: "created_by" },
+        { source: "Threads", target: "goroutine", relation: "contrasts with" },
+        { source: "a", target: "y", relation: "rejected before" },
+        { source: "a", target: "b", relation: "same note" },
+        { source: "a", target: "x", relation: "duplicate" },
+      ],
+      noteConcepts: [c("a", "process"), c("b", "thread")],
+      otherConcepts: [c("x", "fork"), c("y", "goroutine")],
+      edges: [],
+      rejected: new Set([pairKey("y", "a")]),
+      newId: () => `s${i++}`,
+    });
+    expect(out.map((e) => [e.source, e.relation, e.target, e.status, e.noteId])).toEqual([
+      ["a", "created by", "x", "suggested", undefined],
+      ["b", "contrasts with", "y", "suggested", undefined],
+    ]);
+  });
+
+  it("runCrossLinks adds suggested edges once, and skips when the note's concepts haven't changed", async () => {
+    await seed();
+    fetchMock.mockImplementation(async () => ollamaReply({ links: [{ source: "a", target: "x", relation: "created by" }] }));
+    expect(await runCrossLinks("n1", DEFAULT_AI_SETTINGS, new AbortController().signal)).toBe(1);
+    const prompt = JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content as string;
+    expect(prompt).toContain("x: fork");
+    expect(prompt.split("OTHER notes")[1]).not.toContain("a: process"); // own concepts aren't "other"
+
+    fetchMock.mockClear();
+    expect(await runCrossLinks("n1", DEFAULT_AI_SETTINGS, new AbortController().signal)).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

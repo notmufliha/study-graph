@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { runCrossLinks } from "@/lib/ai/crossLinks";
 import { runExtraction } from "@/lib/ai/liveGraph";
 import { UnreachableError } from "@/lib/ai/provider";
 import { aiSettings, useSettings } from "@/store/settingsStore";
@@ -45,8 +46,16 @@ export function useLiveGraph(noteId: string, editor: Editor | null) {
         }
         if (ctrl.signal.aborted) return;
         if (res.kind === "updated") {
+          let summary = res.added || res.removed ? `+${res.added}${res.removed ? ` −${res.removed}` : ""}` : "no changes";
+          // Second, cheaper pass: suggest links to other notes' concepts.
+          if (res.added || full) {
+            setDetail("linking to other notes");
+            const suggested = await runCrossLinks(noteId, aiSettings(), ctrl.signal);
+            if (ctrl.signal.aborted) return;
+            if (suggested) summary += `, ${suggested} suggestion${suggested > 1 ? "s" : ""}`;
+          }
           setStatus("updated");
-          setDetail(res.added || res.removed ? `+${res.added}${res.removed ? ` −${res.removed}` : ""}` : "no changes");
+          setDetail(summary);
         } else if (res.kind === "skipped") {
           setStatus("error");
           setDetail("The model's answer was unusable; skipped");

@@ -95,6 +95,12 @@ describe("graph ops", () => {
     await db.edges.add({ id: "s", source: "b", target: "a", relation: "related to", origin: "ai", status: "suggested" });
     await ops.rejectSuggestion(N, "s");
     expect(await db.rejectedPairs.get("a|b")).toBeDefined();
+
+    // Deleting a cross-note edge with the Delete key counts as rejecting it.
+    await db.rejectedPairs.clear();
+    await db.edges.add({ id: "x", source: "a", target: "b", relation: "related to", origin: "ai", status: "accepted" });
+    await ops.deleteElements(N, [], ["x"]);
+    expect(await db.rejectedPairs.get("a|b")).toBeDefined();
   });
 });
 

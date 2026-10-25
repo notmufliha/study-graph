@@ -136,6 +136,10 @@ async function deleteEdgeRow(rec: Recorder, e: Edge) {
     // bulkGet, not Promise.all: a non-Dexie promise inside a transaction can commit it early.
     const [s, t] = await db.concepts.bulkGet([e.source, e.target]);
     if (s && t) await block(rec, e.noteId, "edge", edgeKey(s.label, e.relation, t.label));
+  } else {
+    // A cross-note edge has no note to block it in; remember the pair instead,
+    // exactly like rejecting a suggestion, so the AI never proposes it again.
+    await rec.put("rejectedPairs", { key: [e.source, e.target].sort().join("|"), createdAt: Date.now() });
   }
   await rec.delete("edges", e.id);
 }
