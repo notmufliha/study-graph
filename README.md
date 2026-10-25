@@ -2,8 +2,7 @@
 
 Notes that turn into a live mind map while you type, and connect concepts across all your notes.
 
-> **Screenshot placeholder:** save a screenshot as `docs/screenshot.png`, then replace this note with
-> `![Study Graph: note editor on the left, live mind map on the right](docs/screenshot.png)`
+**Try it:** https://study-graph-theta.vercel.app (set up Ollama first; see [Set up the AI](#set-up-the-ai-ollama))
 
 Most study apps only take notes. Study Graph reads what you write, pulls out the concepts you need to learn, and draws how they relate. Because concepts are shared between notes, writing about "mutex" in your Java notes automatically connects them to your Operating Systems notes.
 
@@ -61,31 +60,28 @@ The default AI is [Ollama](https://ollama.com) on your own computer. It's free, 
 
    Without a GPU, every update takes much longer (up to a minute or more on a typical laptop CPU).
 
-2. **Allow the site's origin.** Ollama only accepts browser requests from origins listed in `OLLAMA_ORIGINS`. `localhost` works out of the box. For the deployed site, add its URL (replace `your-app`):
+2. **Allow the site to reach Ollama.** Ollama only accepts browser requests from sites listed in `OLLAMA_ORIGINS`. `localhost` is always allowed, so a local copy works without this step. For the live site:
 
    **Windows** (PowerShell), then quit Ollama from the system tray and start it again:
 
    ```powershell
-   setx OLLAMA_ORIGINS "https://your-app.vercel.app,http://localhost:3000"
+   setx OLLAMA_ORIGINS "https://study-graph-theta.vercel.app,http://localhost:3000"
    ```
 
    **macOS**, then quit and reopen the Ollama app:
 
    ```bash
-   launchctl setenv OLLAMA_ORIGINS "https://your-app.vercel.app,http://localhost:3000"
+   launchctl setenv OLLAMA_ORIGINS "https://study-graph-theta.vercel.app,http://localhost:3000"
    ```
 
-   **Linux** (systemd):
+   **Linux** (systemd): run `sudo systemctl edit ollama`, enter the two lines below, save, then run `sudo systemctl restart ollama`.
 
-   ```bash
-   sudo systemctl edit ollama
-   # add these two lines, then save:
-   # [Service]
-   # Environment="OLLAMA_ORIGINS=https://your-app.vercel.app,http://localhost:3000"
-   sudo systemctl restart ollama
+   ```ini
+   [Service]
+   Environment="OLLAMA_ORIGINS=https://study-graph-theta.vercel.app,http://localhost:3000"
    ```
 
-3. In the app, open **Settings**, choose your model, and click **Test connection**.
+3. Open [Settings](https://study-graph-theta.vercel.app/settings), choose your model, and click **Test connection**.
 
 **If it can't connect:**
 
@@ -101,13 +97,14 @@ In Settings, choose **OpenAI-compatible API** to use Ollama Cloud, Groq, OpenRou
 - **Shared key:** a site owner can instead set `AI_API_KEY` on the server, so visitors don't need their own.
 - **Allowed URLs:** the route only forwards to public `https://` URLs.
 
-## Deploy to Vercel
+## Deploy your own copy
 
-1. Push the repository to GitHub (see below).
-2. Go to https://vercel.com/new and import the repository. Vercel detects Next.js automatically; keep the default settings.
-3. Optional: under **Environment Variables**, add `AI_API_KEY`. It's only needed for the hosted-AI option, and it's server-only.
-4. Click **Deploy**.
-5. Add your new URL (for example `https://your-app.vercel.app`) to `OLLAMA_ORIGINS` as shown above, and restart Ollama.
+The app has no database or server state, so it runs on Vercel's free tier.
+
+1. Fork this repository on GitHub.
+2. Import the fork at https://vercel.com/new. Vercel detects Next.js automatically, and the default settings work.
+3. Optionally, set the `AI_API_KEY` environment variable. It's only used by the hosted-AI option, and it stays on the server.
+4. Deploy, then add your deployment's URL to `OLLAMA_ORIGINS` the same way as above, and restart Ollama.
 
 ## How it works
 
