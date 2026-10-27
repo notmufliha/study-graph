@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       {/* Browser extensions often inject attributes on <body>; don't treat that as a hydration error. */}
       <body className="h-full overflow-hidden" suppressHydrationWarning>
         <AppShell>{children}</AppShell>
+        <Analytics />
       </body>
     </html>
   );
