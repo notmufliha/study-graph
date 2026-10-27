@@ -114,7 +114,7 @@ The app has no database or server state, so it runs on Vercel's free tier.
 3. To turn on the built-in AI, set these environment variables (they stay on the server):
    - `AI_API_KEY`: your provider's API key. A free [Groq](https://console.groq.com/keys) key works.
    - `AI_BASE_URL` (optional): defaults to `https://api.groq.com/openai/v1`.
-   - `AI_MODEL` (optional): defaults to `llama-3.3-70b-versatile`.
+   - `AI_MODEL` (optional): defaults to `openai/gpt-oss-20b`.
 
    Without `AI_API_KEY`, the built-in option shows a message and users can choose Ollama or their own key. Every visitor's AI use counts against your key's limits.
 4. Deploy. To use Ollama with your deployment, add its URL to `OLLAMA_ORIGINS` the same way as above, and restart Ollama.

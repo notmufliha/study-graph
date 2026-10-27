@@ -21,7 +21,7 @@ const Body = z.intersection(
 );
 
 const DEFAULT_BUILTIN_URL = "https://api.groq.com/openai/v1";
-const DEFAULT_BUILTIN_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_BUILTIN_MODEL = "openai/gpt-oss-20b";
 
 const Completion = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1) });
 const Models = z.object({ data: z.array(z.object({ id: z.string() })) });
@@ -94,10 +94,15 @@ export async function POST(request: Request) {
     const res = await upstream("/models");
     if (!res) return json({ error: `Can't reach ${base}`, unreachable: true }, 502);
     if (!res.ok) return upstreamError(res);
-    // Visitors don't pick the built-in model; reaching the provider is enough.
-    if (body.builtin) return json({ models: [model] });
     const models = Models.safeParse(await res.json());
     if (!models.success) return json({ error: "Provider's model list has an unexpected format" }, 502);
+    // Visitors don't pick the built-in model, but providers retire models, so check it still exists.
+    if (body.builtin) {
+      if (!models.data.data.some((m) => m.id === model)) {
+        return json({ error: `The built-in AI's model "${model}" isn't available from the provider. Set AI_MODEL on the server.` }, 502);
+      }
+      return json({ models: [model] });
+    }
     return json({ models: models.data.data.map((m) => m.id).sort() });
   }
 
