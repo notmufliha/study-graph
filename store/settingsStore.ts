@@ -11,7 +11,19 @@ export const useSettings = create<SettingsState>()(
       ...DEFAULT_AI_SETTINGS,
       update: (changes) => set(changes),
     }),
-    { name: "study-graph-ai", version: 1 },
+    {
+      name: "study-graph-ai",
+      version: 2,
+      // v2 added the built-in AI as the default. Anyone still on the untouched
+      // old default (local Ollama) moves to it; customised setups are kept.
+      migrate: (persisted, version) => {
+        const s = persisted as AISettings;
+        if (version < 2 && s.provider === "ollama" && s.ollamaUrl === DEFAULT_AI_SETTINGS.ollamaUrl) {
+          return { ...s, provider: "builtin" };
+        }
+        return s;
+      },
+    },
   ),
 );
 

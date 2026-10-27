@@ -9,7 +9,8 @@ export interface AIProvider {
   health(): Promise<boolean>;
 }
 
-export type ProviderKind = "ollama" | "openai";
+/** "builtin" uses the site owner's AI (AI_API_KEY etc. on the server), so visitors need no setup. */
+export type ProviderKind = "builtin" | "ollama" | "openai";
 
 export type AISettings = {
   enabled: boolean;
@@ -24,7 +25,7 @@ export type AISettings = {
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
   enabled: true,
-  provider: "ollama",
+  provider: "builtin",
   ollamaUrl: "http://localhost:11434",
   ollamaModel: "qwen3:8b",
   openaiUrl: "https://ollama.com/v1",

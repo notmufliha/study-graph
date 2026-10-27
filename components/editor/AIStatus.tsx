@@ -17,7 +17,7 @@ const LOOK: Record<LiveStatus, { dot: string; label: string }> = {
 export function AIStatus({ status, detail, onAnalyze }: { status: LiveStatus; detail: string; onAnalyze: () => void }) {
   const provider = useSettings((s) => s.provider);
   const look = LOOK[status];
-  const label = status === "unreachable" && provider === "openai" ? "AI provider not reachable" : look.label;
+  const label = status === "unreachable" && provider !== "ollama" ? "AI provider not reachable" : look.label;
   return (
     <div className="flex min-w-0 items-center gap-2 text-xs text-muted" aria-live="polite">
       <span className={`h-2 w-2 shrink-0 rounded-full ${look.dot}`} />

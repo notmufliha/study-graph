@@ -2,7 +2,7 @@
 
 Notes that turn into a live mind map while you type, and connect concepts across all your notes.
 
-**Try it:** https://study-graph-theta.vercel.app (set up Ollama first; see [Set up the AI](#set-up-the-ai-ollama))
+**Try it:** https://study-graph-theta.vercel.app. Nothing to install: the built-in AI works right away.
 
 Most study apps only take notes. Study Graph reads what you write, pulls out the concepts you need to learn, and draws how they relate. Because concepts are shared between notes, writing about "mutex" in your Java notes automatically connects them to your Operating Systems notes.
 
@@ -18,7 +18,7 @@ Most study apps only take notes. Study Graph reads what you write, pulls out the
 - **Search** across titles, text, tags and concept names.
 - **Export/import**: a note as Markdown, the graph as PNG, and all data as JSON (and back).
 - **Dark mode**, and it works fully as a normal notes app when no AI is reachable.
-- **Private and free to host**: everything is stored in your browser (IndexedDB). There is no database or server state, so the Vercel free tier is enough.
+- **Free to host, notes stay in your browser**: everything is stored in IndexedDB. There is no database or server state, so the Vercel free tier is enough. For fully private AI, use Ollama on your own computer.
 
 ## Tech stack
 
@@ -43,9 +43,17 @@ npm run lint
 npm run build     # production build, includes the type check
 ```
 
-## Set up the AI (Ollama)
+## Choose an AI
 
-The default AI is [Ollama](https://ollama.com) on your own computer. It's free, and your notes never leave your machine. **Your browser** talks to Ollama directly, which is why this works even when the site is hosted on Vercel: Vercel's servers can't reach your `localhost`, but your browser can.
+Settings offers three options:
+
+- **Built-in AI** (default): nothing to set up. The text being mapped goes through this site's `/api/ai` route to the provider the site owner configured (see [Deploy your own copy](#deploy-your-own-copy)). Notes are still stored only in your browser.
+- **Ollama on this computer**: free and fully private. Setup below.
+- **Your own API key**: Groq, OpenRouter, Ollama Cloud or any OpenAI-compatible API. See [Your own API key](#your-own-api-key-optional).
+
+## Set up Ollama (optional)
+
+[Ollama](https://ollama.com) runs the AI on your own computer. It's free, and your notes never leave your machine. **Your browser** talks to Ollama directly, which is why this works even when the site is hosted on Vercel: Vercel's servers can't reach your `localhost`, but your browser can.
 
 1. Install Ollama from https://ollama.com and pull a model:
 
@@ -89,13 +97,13 @@ The default AI is [Ollama](https://ollama.com) on your own computer. It's free, 
 - Chrome may ask for permission to access devices on your local network. Click **Allow**.
 - Safari may block `http://localhost` from an `https://` page. Use Chrome, Edge or Firefox, or run the app locally.
 
-### Hosted AI instead (optional)
+### Your own API key (optional)
 
-In Settings, choose **OpenAI-compatible API** to use Ollama Cloud, Groq, OpenRouter and similar services. Enter the base URL, for example `https://ollama.com/v1`, `https://api.groq.com/openai/v1` or `https://openrouter.ai/api/v1`, plus your API key. Requests go through this app's `/api/ai` route:
+In Settings, choose **Your own API key**. Enter the base URL, for example `https://api.groq.com/openai/v1`, `https://openrouter.ai/api/v1` or `https://ollama.com/v1`, plus your key. Requests go through this app's `/api/ai` route:
 
-- **Your key:** a key you enter is kept in your browser and sent only to that route.
-- **Shared key:** a site owner can instead set `AI_API_KEY` on the server, so visitors don't need their own.
+- **Your key** is kept in your browser and sent only to that route, which forwards it to the URL you entered.
 - **Allowed URLs:** the route only forwards to public `https://` URLs.
+- **The site owner's key is never used here.** `AI_API_KEY` only ever goes to `AI_BASE_URL`, so nobody can point the route at their own server to read it.
 
 ## Deploy your own copy
 
@@ -103,8 +111,13 @@ The app has no database or server state, so it runs on Vercel's free tier.
 
 1. Fork this repository on GitHub.
 2. Import the fork at https://vercel.com/new. Vercel detects Next.js automatically, and the default settings work.
-3. Optionally, set the `AI_API_KEY` environment variable. It's only used by the hosted-AI option, and it stays on the server.
-4. Deploy, then add your deployment's URL to `OLLAMA_ORIGINS` the same way as above, and restart Ollama.
+3. To turn on the built-in AI, set these environment variables (they stay on the server):
+   - `AI_API_KEY`: your provider's API key. A free [Groq](https://console.groq.com/keys) key works.
+   - `AI_BASE_URL` (optional): defaults to `https://api.groq.com/openai/v1`.
+   - `AI_MODEL` (optional): defaults to `llama-3.3-70b-versatile`.
+
+   Without `AI_API_KEY`, the built-in option shows a message and users can choose Ollama or their own key. Every visitor's AI use counts against your key's limits.
+4. Deploy. To use Ollama with your deployment, add its URL to `OLLAMA_ORIGINS` the same way as above, and restart Ollama.
 
 ## How it works
 

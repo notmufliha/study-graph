@@ -8,6 +8,8 @@ import { OllamaBrowserProvider } from "./ollama";
 import { DEFAULT_AI_SETTINGS, chatJSONWithRetry, parseJSON } from "./provider";
 import { GraphOpsSchema, jsonSchemaFor } from "./schemas";
 
+const OLLAMA = { ...DEFAULT_AI_SETTINGS, provider: "ollama" as const };
+
 const ollamaReply = (content: unknown) =>
   new Response(JSON.stringify({ message: { role: "assistant", content: typeof content === "string" ? content : JSON.stringify(content) } }));
 
@@ -81,7 +83,7 @@ describe("runExtraction", () => {
       }),
     );
     const doc = t.doc(t.h(2, "Basics"), t.p("The kernel is the core."), t.p("Programs use system calls."));
-    const res = await runExtraction("n1", doc, DEFAULT_AI_SETTINGS, new AbortController().signal);
+    const res = await runExtraction("n1", doc, OLLAMA, new AbortController().signal);
 
     expect(res).toEqual({ kind: "updated", added: 2, removed: 0, pending: false });
     const prompt = JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content as string;
@@ -93,7 +95,7 @@ describe("runExtraction", () => {
 
     // Nothing changed since: no request.
     fetchMock.mockClear();
-    expect(await runExtraction("n1", doc, DEFAULT_AI_SETTINGS, new AbortController().signal)).toEqual({ kind: "nochange" });
+    expect(await runExtraction("n1", doc, OLLAMA, new AbortController().signal)).toEqual({ kind: "nochange" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -104,7 +106,7 @@ describe("runExtraction", () => {
       ctrl.abort();
       return ollamaReply({ addConcepts: [{ label: "kernel" }] });
     });
-    await expect(runExtraction("n1", t.doc(t.p("kernel")), DEFAULT_AI_SETTINGS, ctrl.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(runExtraction("n1", t.doc(t.p("kernel")), OLLAMA, ctrl.signal)).rejects.toMatchObject({ name: "AbortError" });
     expect(await db.concepts.count()).toBe(0);
   });
 });
@@ -145,13 +147,13 @@ describe("cross-note suggestions", () => {
   it("runCrossLinks adds suggested edges once, and skips when the note's concepts haven't changed", async () => {
     await seed();
     fetchMock.mockImplementation(async () => ollamaReply({ links: [{ source: "a", target: "x", relation: "created by" }] }));
-    expect(await runCrossLinks("n1", DEFAULT_AI_SETTINGS, new AbortController().signal)).toBe(1);
+    expect(await runCrossLinks("n1", OLLAMA, new AbortController().signal)).toBe(1);
     const prompt = JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content as string;
     expect(prompt).toContain("x: fork");
     expect(prompt.split("OTHER notes")[1]).not.toContain("a: process"); // own concepts aren't "other"
 
     fetchMock.mockClear();
-    expect(await runCrossLinks("n1", DEFAULT_AI_SETTINGS, new AbortController().signal)).toBe(0);
+    expect(await runCrossLinks("n1", OLLAMA, new AbortController().signal)).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

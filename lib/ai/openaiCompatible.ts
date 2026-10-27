@@ -8,17 +8,16 @@ const RouteResponse = z.union([
   z.object({ error: z.string(), unreachable: z.boolean().optional() }),
 ]);
 
+/** Either the site owner's built-in AI (configured on the server) or the user's own provider and key. */
+export type RouteTarget = { builtin: true } | { baseUrl: string; model: string; apiKey: string };
+
 /**
- * OpenAI-compatible APIs (Ollama Cloud, Groq, OpenRouter, …). Calls go through
- * our own /api/ai route handler so an API key from the AI_API_KEY env var never
- * reaches the browser, and so we avoid those providers' CORS rules.
+ * OpenAI-compatible APIs (Groq, OpenRouter, Ollama Cloud, …). Calls go through
+ * our own /api/ai route handler so the server's AI_API_KEY never reaches the
+ * browser, and so we avoid those providers' CORS rules.
  */
 export class OpenAICompatibleProvider implements AIProvider {
-  constructor(
-    private baseUrl: string,
-    private model: string,
-    private apiKey: string,
-  ) {}
+  constructor(private target: RouteTarget) {}
 
   private async call(body: Record<string, unknown>, signal?: AbortSignal) {
     let res: Response;
@@ -26,7 +25,7 @@ export class OpenAICompatibleProvider implements AIProvider {
       res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl: this.baseUrl, apiKey: this.apiKey || undefined, ...body }),
+        body: JSON.stringify({ ...this.targetFields(), ...body }),
         signal,
       });
     } catch (e) {
@@ -40,8 +39,13 @@ export class OpenAICompatibleProvider implements AIProvider {
     return data;
   }
 
+  private targetFields() {
+    const t = this.target;
+    return "builtin" in t ? { builtin: true } : { baseUrl: t.baseUrl, apiKey: t.apiKey || undefined, model: t.model };
+  }
+
   async chatJSON<S extends z.ZodType>(messages: ChatMessage[], schema: S, signal?: AbortSignal): Promise<z.infer<S>> {
-    const data = await this.call({ action: "chat", model: this.model, messages, jsonSchema: jsonSchemaFor(schema) }, signal);
+    const data = await this.call({ action: "chat", messages, jsonSchema: jsonSchemaFor(schema) }, signal);
     if (!("content" in data)) throw new Error("Unexpected response from /api/ai");
     return parseJSON(data.content, schema);
   }

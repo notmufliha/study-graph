@@ -5,17 +5,23 @@ import { z } from "zod";
 
 const Message = z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string().max(60_000) });
 
-const Body = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("chat"),
-    baseUrl: z.string().url(),
-    apiKey: z.string().optional(),
-    model: z.string().min(1),
-    messages: z.array(Message).min(1).max(20),
-    jsonSchema: z.record(z.string(), z.unknown()),
-  }),
-  z.object({ action: z.literal("models"), baseUrl: z.string().url(), apiKey: z.string().optional() }),
+// Either the built-in AI (provider, model and key all come from the server's env)
+// or the user's own provider, where the user must supply their own key.
+const Target = z.union([
+  z.object({ builtin: z.literal(true) }),
+  z.object({ builtin: z.undefined().optional(), baseUrl: z.string().url(), apiKey: z.string().optional(), model: z.string().optional() }),
 ]);
+
+const Body = z.intersection(
+  Target,
+  z.discriminatedUnion("action", [
+    z.object({ action: z.literal("chat"), messages: z.array(Message).min(1).max(20), jsonSchema: z.record(z.string(), z.unknown()) }),
+    z.object({ action: z.literal("models") }),
+  ]),
+);
+
+const DEFAULT_BUILTIN_URL = "https://api.groq.com/openai/v1";
+const DEFAULT_BUILTIN_MODEL = "llama-3.3-70b-versatile";
 
 const Completion = z.object({ choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1) });
 const Models = z.object({ data: z.array(z.object({ id: z.string() })) });
@@ -51,13 +57,25 @@ export async function POST(request: Request) {
   if (!parsed.success) return json({ error: "Invalid request" }, 400);
   const body = parsed.data;
 
-  if (!isAllowedTarget(body.baseUrl)) {
-    return json({ error: "Base URL must be a public https:// address. For a local Ollama, choose the Ollama provider." }, 400);
+  // AI_API_KEY is only ever sent to AI_BASE_URL, never to a URL the client picks;
+  // otherwise anyone could point the route at their own server and read the key.
+  let baseUrl: string, key: string, model: string;
+  if (body.builtin) {
+    key = process.env.AI_API_KEY ?? "";
+    if (!key) return json({ error: "The built-in AI isn't set up on this site. Choose another provider in Settings." }, 400);
+    baseUrl = process.env.AI_BASE_URL || DEFAULT_BUILTIN_URL;
+    model = process.env.AI_MODEL || DEFAULT_BUILTIN_MODEL;
+  } else {
+    if (!isAllowedTarget(body.baseUrl)) {
+      return json({ error: "Base URL must be a public https:// address. For a local Ollama, choose the Ollama provider." }, 400);
+    }
+    if (!body.apiKey) return json({ error: "Enter your API key in Settings." }, 400);
+    baseUrl = body.baseUrl;
+    key = body.apiKey;
+    model = body.model ?? "";
   }
-  const key = body.apiKey || process.env.AI_API_KEY;
-  if (!key) return json({ error: "No API key: enter one in Settings or set AI_API_KEY on the server." }, 400);
 
-  const base = body.baseUrl.replace(/\/+$/, "");
+  const base = baseUrl.replace(/\/+$/, "");
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 
   const upstream = async (path: string, init?: RequestInit) => {
@@ -76,6 +94,8 @@ export async function POST(request: Request) {
     const res = await upstream("/models");
     if (!res) return json({ error: `Can't reach ${base}`, unreachable: true }, 502);
     if (!res.ok) return upstreamError(res);
+    // Visitors don't pick the built-in model; reaching the provider is enough.
+    if (body.builtin) return json({ models: [model] });
     const models = Models.safeParse(await res.json());
     if (!models.success) return json({ error: "Provider's model list has an unexpected format" }, 502);
     return json({ models: models.data.data.map((m) => m.id).sort() });
@@ -84,7 +104,7 @@ export async function POST(request: Request) {
   const chat = (response_format: unknown, messages = body.messages) =>
     upstream("/chat/completions", {
       method: "POST",
-      body: JSON.stringify({ model: body.model, messages, temperature: 0.2, stream: false, response_format }),
+      body: JSON.stringify({ model, messages, temperature: 0.2, stream: false, response_format }),
     });
 
   let res = await chat({ type: "json_schema", json_schema: { name: "response", schema: body.jsonSchema } });

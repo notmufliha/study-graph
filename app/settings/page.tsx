@@ -24,8 +24,9 @@ function SettingsForm() {
   const s = useSettings();
   const [models, setModels] = useState<string[]>([]);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
+  const isBuiltin = s.provider === "builtin";
   const isOllama = s.provider === "ollama";
-  const model = isOllama ? s.ollamaModel : s.openaiModel;
+  const model = isOllama ? s.ollamaModel : isBuiltin ? "" : s.openaiModel;
 
   const runTest = async () => {
     setTest({ kind: "testing" });
@@ -70,7 +71,13 @@ function SettingsForm() {
         </Section>
 
         <Section title="AI provider">
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <ProviderCard
+              active={isBuiltin}
+              onClick={() => setProvider("builtin")}
+              title="Built-in AI"
+              text="Works right away, nothing to install. Recommended."
+            />
             <ProviderCard
               active={isOllama}
               onClick={() => setProvider("ollama")}
@@ -78,14 +85,19 @@ function SettingsForm() {
               text="Free and private. Your browser talks to Ollama directly."
             />
             <ProviderCard
-              active={!isOllama}
+              active={s.provider === "openai"}
               onClick={() => setProvider("openai")}
-              title="OpenAI-compatible API"
-              text="Ollama Cloud, Groq, OpenRouter… Needs an API key."
+              title="Your own API key"
+              text="Groq, OpenRouter, Ollama Cloud or any OpenAI-compatible API."
             />
           </div>
 
-          {isOllama ? (
+          {isBuiltin ? (
+            <p className="text-sm text-muted">
+              Nothing to set up. To build your map, the text you type is sent through this site to its AI provider. Your notes
+              are still saved only in this browser. For fully private AI, use Ollama on this computer instead.
+            </p>
+          ) : isOllama ? (
             <Field label="Ollama URL">
               <input
                 value={s.ollamaUrl}
@@ -101,7 +113,7 @@ function SettingsForm() {
               </Field>
               <Field
                 label="API key"
-                hint="Stored only in this browser and sent to this app's /api/ai route, which forwards it to the provider. Leave empty if the site owner set AI_API_KEY on the server."
+                hint="Stored only in this browser and sent to this app's /api/ai route, which forwards it to the provider."
               >
                 <input
                   type="password"
@@ -114,38 +126,40 @@ function SettingsForm() {
             </>
           )}
 
-          <Field
-            label="Model"
-            hint={
-              isOllama
-                ? "Recommended: qwen3:8b. On a strong GPU, qwen3:14b finds better links. On a weak laptop, try gemma3:4b or llama3.2:3b."
-                : "Use “Test connection” to load the provider's models."
-            }
-          >
-            <div className="flex gap-2">
-              {models.length ? (
-                <select
-                  value={model}
-                  onChange={(e) => s.update(isOllama ? { ollamaModel: e.target.value } : { openaiModel: e.target.value })}
-                  className={inputCls}
-                >
-                  {!models.includes(model) && <option value={model}>{model || "Choose a model"} (not installed)</option>}
-                  {models.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={model}
-                  onChange={(e) => s.update(isOllama ? { ollamaModel: e.target.value } : { openaiModel: e.target.value })}
-                  placeholder={isOllama ? "qwen3:8b" : "model name"}
-                  className={inputCls}
-                />
-              )}
-            </div>
-          </Field>
+          {!isBuiltin && (
+            <Field
+              label="Model"
+              hint={
+                isOllama
+                  ? "Recommended: qwen3:8b. On a strong GPU, qwen3:14b finds better links. On a weak laptop, try gemma3:4b or llama3.2:3b."
+                  : "Use “Test connection” to load the provider's models."
+              }
+            >
+              <div className="flex gap-2">
+                {models.length ? (
+                  <select
+                    value={model}
+                    onChange={(e) => s.update(isOllama ? { ollamaModel: e.target.value } : { openaiModel: e.target.value })}
+                    className={inputCls}
+                  >
+                    {!models.includes(model) && <option value={model}>{model || "Choose a model"} (not installed)</option>}
+                    {models.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={model}
+                    onChange={(e) => s.update(isOllama ? { ollamaModel: e.target.value } : { openaiModel: e.target.value })}
+                    placeholder={isOllama ? "qwen3:8b" : "model name"}
+                    className={inputCls}
+                  />
+                )}
+              </div>
+            </Field>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <button
